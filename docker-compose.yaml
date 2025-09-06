@@ -51,14 +51,18 @@ services:
     # uncomment the build: statement and comment out the image: statement
     # image: ghcr.io/firecrawl/playwright-service:latest
     build: apps/playwright-service-ts
+    tmpfs:
+      - /tmp
     environment:
       PORT: 3000
       PROXY_SERVER: ${PROXY_SERVER}
       PROXY_USERNAME: ${PROXY_USERNAME}
       PROXY_PASSWORD: ${PROXY_PASSWORD}
       BLOCK_MEDIA: ${BLOCK_MEDIA}
+      CHROMIUM_FLAGS: "--disk-cache-size=0 --media-cache-size=0 --disable-application-cache --disable-gpu-shader-disk-cache --disable-session-storage"
     networks:
       - backend
+    shm_size: '2gb'
 
   api:
     <<: *common-service

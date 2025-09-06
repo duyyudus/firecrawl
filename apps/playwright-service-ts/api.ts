@@ -18,6 +18,10 @@ const PROXY_SERVER = process.env.PROXY_SERVER || null;
 const PROXY_USERNAME = process.env.PROXY_USERNAME || null;
 const PROXY_PASSWORD = process.env.PROXY_PASSWORD || null;
 
+const chromiumFlags = process.env.CHROMIUM_FLAGS
+  ? process.env.CHROMIUM_FLAGS.split(/\s+/).filter(Boolean)
+  : [];
+
 const AD_SERVING_DOMAINS = [
   'doubleclick.net',
   'adservice.google.com',
@@ -55,7 +59,8 @@ const initializeBrowser = async () => {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      ...chromiumFlags,
     ]
   });
 };
@@ -68,6 +73,9 @@ const createContext = async (skipTlsVerification: boolean = false) => {
     userAgent,
     viewport,
     ignoreHTTPSErrors: skipTlsVerification,
+    httpCredentials: undefined,
+    storageState: undefined,
+    bypassServiceWorker: true,
   };
 
   if (PROXY_SERVER && PROXY_USERNAME && PROXY_PASSWORD) {
@@ -211,6 +219,11 @@ app.post('/scrape', async (req: Request, res: Response) => {
     await page.setExtraHTTPHeaders(headers);
   }
 
+  await page.setExtraHTTPHeaders({
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+  });
+
   let result: Awaited<ReturnType<typeof scrapePage>>;
   try {
     // Strategy 1: Normal
@@ -228,23 +241,29 @@ app.post('/scrape', async (req: Request, res: Response) => {
     }
   }
 
-  const pageError = result.status !== 200 ? getError(result.status) : undefined;
-
-  if (!pageError) {
-    console.log(`✅ Scrape successful!`);
-  } else {
-    console.log(`🚨 Scrape failed with status code: ${result.status} ${pageError}`);
+  try {
+    const pageError = result.status !== 200 ? getError(result.status) : undefined;
+  
+    if (!pageError) {
+      console.log(`✅ Scrape successful!`);
+    } else {
+      console.log(`🚨 Scrape failed with status code: ${result.status} ${pageError}`);
+    }
+  
+    await page.close();
+    await requestContext.close();
+  
+    res.json({
+      content: result.content,
+      pageStatusCode: result.status,
+      contentType: result.contentType,
+      ...(pageError && { pageError })
+    });
+  } finally{
+    await page.close();
+    await requestContext.close();
   }
 
-  await page.close();
-  await requestContext.close();
-
-  res.json({
-    content: result.content,
-    pageStatusCode: result.status,
-    contentType: result.contentType,
-    ...(pageError && { pageError })
-  });
 });
 
 app.listen(port, () => {
@@ -253,7 +272,16 @@ app.listen(port, () => {
   });
 });
 
+process.on('exit', () => {
+  if (browser) browser.close().catch(() => {});
+});
 process.on('SIGINT', () => {
+  shutdownBrowser().then(() => {
+    console.log('Browser closed');
+    process.exit(0);
+  });
+});
+process.on('SIGTERM', () => {
   shutdownBrowser().then(() => {
     console.log('Browser closed');
     process.exit(0);
