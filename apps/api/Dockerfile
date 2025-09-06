@@ -62,6 +62,9 @@ RUN apt-get update && apt-get install -y \
 EXPOSE 8080
 WORKDIR /app
 
+# Copy runtime manifests
+COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+
 # Copy built application
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
