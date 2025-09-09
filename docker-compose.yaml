@@ -58,6 +58,7 @@ services:
       PROXY_PASSWORD: ${PROXY_PASSWORD}
       BLOCK_MEDIA: ${BLOCK_MEDIA}
       CHROMIUM_FLAGS: "--disk-cache-size=0 --media-cache-size=0 --disable-application-cache --disable-gpu-shader-disk-cache --disable-session-storage"
+    restart: unless-stopped
     networks:
       - backend
     shm_size: '2gb'
@@ -70,6 +71,7 @@ services:
       PORT: ${INTERNAL_PORT:-3002}
       WORKER_PORT: ${WORKER_PORT:-3005}
       ENV: local
+    restart: unless-stopped
     depends_on:
       - redis
       - playwright-service
@@ -83,6 +85,7 @@ services:
     # Using Valkey with Firecrawl is untested and not guaranteed to work. Use with caution.
     image: redis:alpine
     # image: valkey/valkey:alpine
+    restart: unless-stopped
 
     networks:
       - backend
@@ -98,6 +101,7 @@ services:
       - backend
     ports:
       - "5432:5432"
+    restart: unless-stopped
 
 networks:
   backend:
