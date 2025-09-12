@@ -776,10 +776,20 @@ export async function scrapeURL(
   }
 
   try {
-    while (true) {
+    const MAX_RETRIES = 10;
+    let retryCount = 0;
+    while (retryCount < MAX_RETRIES) {
       try {
         return await scrapeURLLoop(meta);
       } catch (error) {
+        retryCount++;
+
+        // Check if we've hit max retries
+        if (retryCount >= MAX_RETRIES) {
+          meta.logger.warn("Max retries reached, giving up", { error, retryCount });
+          throw error;
+        }
+
         if (
           error instanceof AddFeatureError &&
           (meta.internalOptions.forceEngine === undefined ||
@@ -831,6 +841,9 @@ export async function scrapeURL(
         }
       }
     }
+  
+  // After the while loop
+  throw new Error("Unreachable: scrapeURLLoop should have returned or thrown");
   } catch (error) {
     // if (Object.values(meta.results).length > 0 && Object.values(meta.results).every(x => x.state === "error" && x.error instanceof FEPageLoadFailed)) {
     //   throw new FEPageLoadFailed();
